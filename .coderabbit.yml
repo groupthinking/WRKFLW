@@ -1,0 +1,7 @@
+reviews:
+  pre_merge_checks:
+    custom_checks:
+      - name: "Undocumented Breaking Changes"
+        mode: "warning"
+        instructions: |
+          Pass/fail criteria: All breaking changes to public APIs, CLI flags, environment variables, configuration keys, database schemas, or HTTP/GraphQL endpoints must be documented in the "Breaking Change" section of the PR description and in CHANGELOG.md. Exclude purely internal or private changes (e.g., code not exported from package entry points or explicitly marked as internal).

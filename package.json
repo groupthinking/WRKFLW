@@ -16,6 +16,6 @@
     "start": "concurrently \"npm:dev:backend\" \"npm:start:frontend\" \"npm:start:mobile\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.0"
+    "concurrently": "^9.2.1"
   }
 }

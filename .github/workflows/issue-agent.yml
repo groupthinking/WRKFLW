@@ -1,0 +1,41 @@
+name: "🤖 Issue Agent - Auto Fix"
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  auto-investigate:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'agent-task') || contains(github.event.issue.labels.*.name, 'bug')
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Label as in-progress
+        run: |
+          gh issue edit ${{ github.event.issue.number }} --add-label "🤖 agent-working"
+          gh issue comment ${{ github.event.issue.number }} --body "🤖 Agent picked up this issue. Investigating..."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Analyze with Copilot
+        id: analyze
+        run: |
+          echo "Issue: ${{ github.event.issue.title }}"
+          echo "Body: ${{ github.event.issue.body }}"
+          echo "analyzed=true" >> $GITHUB_OUTPUT
+        
+      - name: Create fix branch
+        if: steps.analyze.outputs.analyzed == 'true'
+        run: |
+          BRANCH="agent/fix-issue-${{ github.event.issue.number }}"
+          git checkout -b "$BRANCH"
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          git push origin "$BRANCH" 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

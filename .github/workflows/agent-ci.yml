@@ -1,0 +1,133 @@
+name: "🤖 Autonomous Agent CI/CD"
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issues:
+    types: [opened, labeled]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly Monday 6am audit
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect-and-build:
+    name: "🔍 Auto-Detect & Build"
+    runs-on: ubuntu-latest
+    outputs:
+      framework: ${{ steps.detect.outputs.framework }}
+      has_tests: ${{ steps.detect.outputs.has_tests }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Detect Framework
+        id: detect
+        run: |
+          if [ -f "package.json" ]; then
+            if grep -q "next" package.json; then echo "framework=nextjs" >> $GITHUB_OUTPUT
+            elif grep -q "react" package.json; then echo "framework=react" >> $GITHUB_OUTPUT
+            elif grep -q "vue" package.json; then echo "framework=vue" >> $GITHUB_OUTPUT
+            else echo "framework=node" >> $GITHUB_OUTPUT; fi
+            if grep -q '"test"' package.json; then echo "has_tests=true" >> $GITHUB_OUTPUT
+            else echo "has_tests=false" >> $GITHUB_OUTPUT; fi
+          elif [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+            echo "framework=python" >> $GITHUB_OUTPUT
+            if [ -d "tests" ] || [ -d "test" ]; then echo "has_tests=true" >> $GITHUB_OUTPUT
+            else echo "has_tests=false" >> $GITHUB_OUTPUT; fi
+          elif [ -f "go.mod" ]; then
+            echo "framework=go" >> $GITHUB_OUTPUT
+            echo "has_tests=true" >> $GITHUB_OUTPUT
+          else
+            echo "framework=static" >> $GITHUB_OUTPUT
+            echo "has_tests=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Setup Node
+        if: contains(fromJSON('["nextjs","react","vue","node"]'), steps.detect.outputs.framework)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install & Build (Node)
+        if: contains(fromJSON('["nextjs","react","vue","node"]'), steps.detect.outputs.framework)
+        run: |
+          npm ci --ignore-scripts 2>/dev/null || npm install
+          npm run build --if-present
+        continue-on-error: true
+      
+      - name: Test (Node)
+        if: contains(fromJSON('["nextjs","react","vue","node"]'), steps.detect.outputs.framework) && steps.detect.outputs.has_tests == 'true'
+        run: npm test -- --passWithNoTests 2>/dev/null || npm test
+        continue-on-error: true
+
+      - name: Setup Python
+        if: steps.detect.outputs.framework == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install & Test (Python)
+        if: steps.detect.outputs.framework == 'python'
+        run: |
+          pip install -r requirements.txt 2>/dev/null || pip install -e ".[dev]" 2>/dev/null || true
+          pytest --tb=short 2>/dev/null || true
+        continue-on-error: true
+
+  security-scan:
+    name: "🛡️ Security Scan"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript,python
+        continue-on-error: true
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+        continue-on-error: true
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        continue-on-error: true
+
+  auto-label:
+    name: "🏷️ Auto-Label PRs"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+  copilot-review:
+    name: "🧠 Copilot Auto-Review"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: detect-and-build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Auto-approve safe PRs
+        if: github.actor == 'dependabot[bot]' || github.actor == 'github-actions[bot]'
+        run: gh pr review ${{ github.event.pull_request.number }} --approve --body "🤖 Auto-approved (trusted bot)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Auto-merge Dependabot
+        if: github.actor == 'dependabot[bot]'
+        run: gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

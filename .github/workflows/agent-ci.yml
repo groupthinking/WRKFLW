@@ -68,6 +68,8 @@ jobs:
       - name: Setup pnpm
         if: steps.detect.outputs.pkg_manager == 'pnpm'
         uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - name: Setup Node (with cache)
         if: contains(fromJSON('["nextjs","react","vue","node"]'), steps.detect.outputs.framework) && steps.detect.outputs.pkg_manager != 'none'

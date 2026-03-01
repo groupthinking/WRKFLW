@@ -71,14 +71,14 @@ jobs:
 
       - name: Setup Node (with cache)
         if: contains(fromJSON('["nextjs","react","vue","node"]'), steps.detect.outputs.framework) && steps.detect.outputs.pkg_manager != 'none'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: ${{ steps.detect.outputs.pkg_manager }}
 
       - name: Setup Node (no cache)
         if: contains(fromJSON('["nextjs","react","vue","node"]'), steps.detect.outputs.framework) && steps.detect.outputs.pkg_manager == 'none'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 

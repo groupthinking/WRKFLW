@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(github.event.issue.labels.*.name, 'agent-task') || contains(github.event.issue.labels.*.name, 'bug')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       
       - name: Label as in-progress
         run: |

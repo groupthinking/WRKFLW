@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "expo": "~48.0.0",
-    "react": "18.2.0",
+    "react": "19.2.4",
     "react-native": "0.71.8"
   }
 }
